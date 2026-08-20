@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Minimalist Snake Pro</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    body {
+      background: #0d0d11;
+      color: #f0f0f5;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      touch-action: manipulation;
+    }
+
+    .container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+      max-width: 420px;
+      padding: 16px;
+      position: relative;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      font-size: 0.95rem;
+      color: #a0a0b0;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .icon-btn {
+      background: #1a1a24;
+      border: 1px solid #2e2e3e;
+      color: #f0f0f5;
+      border-radius: 8px;
+      padding: 6px 12px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: background 0.2s, border-color 0.2s;
+    }
+
+    .icon-btn:hover {
+      background: #252533;
+      border-color: #4f46e5;
+    }
+
+    .score-box span {
+      color: #22c55e;
+      font-weight: 700;
+    }
+
+    .canvas-wrapper {
+      position: relative;
+      width: 100%;
+    }
+
+    canvas {
+      background: #13131a;
+      border: 1px solid #282836;
+      border-radius: 12px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    /* Pause Overlay */
+    .pause-overlay {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(13, 13, 17, 0.75);
+      backdrop-filter: blur(4px);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+      color: #f0f0f5;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+
+    .pause-overlay.active {
+      opacity: 1;
+    }
+
+    /* Settings Panel */
+    .settings-panel {
+      position: absolute;
+      top: 60px;
+      width: calc(100% - 32px);
+      background: #1a1a24;
+      border: 1px solid #2e2e3e;
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.8);
+      z-index: 10;
+      transform: translateY(-10px);
+      opacity: 0;
+      pointer-events: none;
+      transition: transform 0.2s, opacity 0.2s;
+    }
+
+    .settings-panel.active {
+      transform: translateY(0);
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .setting-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.9rem;
+    }
+
+    .setting-item select, .setting-item input {
+      background: #0d0d11;
+      border: 1px solid #2e2e3e;
+      color: #f0f0f5;
+      padding: 4px 8px;
+      border-radius: 6px;
+      outline: none;
+      width: 100px;
+      text-align: center;
+    }
+
+    /* Mobile Controls */
+    .controls {
+      display: none;
+      grid-template-columns: repeat(3, 1fr);
+      grid-gap: 8px;
+      width: 200px;
+      margin-top: 8px;
+    }
+
+    .is-mobile .controls {
+      display: grid;
+    }
+
+    .btn {
+      background-color: #1a1a24;
+      border: 1px solid #2e2e3e;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 1.2rem;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    .btn:active {
+      background-color: #22c55e;
+    }
+
+    .btn-up { grid-column: 2; }
+    .btn-left { grid-column: 1; grid-row: 2; }
+    .btn-down { grid-column: 2; grid-row: 2; }
+    .btn-right { grid-column: 3; grid-row: 2; }
+  </style>
+</head>
+<body>
+
+<div class="container" id="gameContainer">
+  <div class="header">
+    <div class="score-box">SCORE: <span id="score">0</span></div>
+    <div class="header-actions">
+      <button class="icon-btn" id="pauseBtn" onclick="togglePause()">⏸ Pause</button>
+      <button class="icon-btn" onclick="toggleSettings()">⚙ Settings</button>
+    </div>
+  </div>
+
+  <!-- Settings Window -->
+  <div class="settings-panel" id="settingsPanel">
+    <div class="setting-item">
+      <label for="speedSelect">Speed:</label>
+      <select id="speedSelect" onchange="updateSettings()">
+        <option value="150">Slow</option>
+        <option value="100" selected>Normal</option>
+        <option value="60">Fast</option>
+      </select>
+    </div>
+    <div class="setting-item">
+      <label for="foodCountInput">Apples Count:</label>
+      <input type="number" id="foodCountInput" min="1" max="10" value="1" onchange="updateSettings()">
+    </div>
+  </div>
+
+  <div class="canvas-wrapper">
+    <canvas id="game" width="400" height="400"></canvas>
+    <div class="pause-overlay" id="pauseOverlay">PAUSED</div>
+  </div>
+
+  <div class="controls">
+    <button class="btn btn-up" onclick="setDir('UP')">▲</button>
+    <button class="btn btn-left" onclick="setDir('LEFT')">◄</button>
+    <button class="btn btn-down" onclick="setDir('DOWN')">▼</button>
+    <button class="btn btn-right" onclick="setDir('RIGHT')">►</button>
+  </div>
+</div>
+
+<script>
+  const container = document.getElementById("gameContainer");
+  const settingsPanel = document.getElementById("settingsPanel");
+  const pauseOverlay = document.getElementById("pauseOverlay");
+  const pauseBtn = document.getElementById("pauseBtn");
+  const canvas = document.getElementById("game");
+  const ctx = canvas.getContext("2d");
+  const scoreEl = document.getElementById("score");
+
+  function detectMobile() {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) 
+      || (('ontouchstart' in window) && window.matchMedia("(max-width: 768px)").matches);
+  }
+
+  if (detectMobile()) {
+    container.classList.add("is-mobile");
+  }
+
+  const gridSize = 20;
+  const tileCount = canvas.width / gridSize;
+
+  // Изначально 2 клеточки
+  let snake = [{ x: 10, y: 10 }, { x: 10, y: 11 }];
+  let foods = [];
+  let dx = 0;
+  let dy = 0;
+  let score = 0;
+  let gameInterval = null;
+  let gameStarted = false;
+  let isPaused = false;
+
+  let gameSpeed = 100;
+  let targetFoodCount = 1;
+
+  function updateSettings() {
+    gameSpeed = parseInt(document.getElementById("speedSelect").value);
+    targetFoodCount = Math.max(1, Math.min(10, parseInt(document.getElementById("foodCountInput").value)));
+    
+    if (gameStarted && !isPaused) {
+      clearInterval(gameInterval);
+      gameInterval = setInterval(gameLoop, gameSpeed);
+    }
+    
+    adjustFoodCount();
+  }
+
+  function toggleSettings() {
+    settingsPanel.classList.toggle("active");
+  }
+
+  function togglePause() {
+    if (!gameStarted) return;
+    
+    isPaused = !isPaused;
+    if (isPaused) {
+      clearInterval(gameInterval);
+      pauseOverlay.classList.add("active");
+      pauseBtn.innerText = "▶ Play";
+    } else {
+      gameInterval = setInterval(gameLoop, gameSpeed);
+      pauseOverlay.classList.remove("active");
+      pauseBtn.innerText = "⏸ Pause";
+    }
+  }
+
+  // Забинден Escape, Space, P
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" || e.key === " " || e.key === "p" || e.key === "P") {
+      togglePause();
+      return;
+    }
+
+    if (isPaused) return;
+
+    switch (e.key) {
+      case "ArrowUp": case "w": case "W": setDir('UP'); break;
+      case "ArrowDown": case "s": case "S": setDir('DOWN'); break;
+      case "ArrowLeft": case "a": case "A": setDir('LEFT'); break;
+      case "ArrowRight": case "d": case "D": setDir('RIGHT'); break;
+    }
+  });
+
+  let touchStartX = 0;
+  let touchStartY = 0;
+
+  canvas.addEventListener("touchstart", (e) => {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+  }, { passive: true });
+
+  canvas.addEventListener("touchend", (e) => {
+    if (isPaused) return;
+    const diffX = e.changedTouches[0].clientX - touchStartX;
+    const diffY = e.changedTouches[0].clientY - touchStartY;
+
+    if (Math.abs(diffX) > Math.abs(diffY)) {
+      if (Math.abs(diffX) > 30) setDir(diffX > 0 ? 'RIGHT' : 'LEFT');
+    } else {
+      if (Math.abs(diffY) > 30) setDir(diffY > 0 ? 'DOWN' : 'UP');
+    }
+  }, { passive: true });
+
+  function setDir(dir) {
+    if (settingsPanel.classList.contains("active")) {
+      settingsPanel.classList.remove("active");
+    }
+
+    if (!gameStarted) {
+      gameStarted = true;
+      adjustFoodCount();
+      gameInterval = setInterval(gameLoop, gameSpeed);
+    }
+
+    if (isPaused) return;
+
+    if (dir === 'UP' && dy === 0) { dx = 0; dy = -1; }
+    if (dir === 'DOWN' && dy === 0) { dx = 0; dy = 1; }
+    if (dir === 'LEFT' && dx === 0) { dx = -1; dy = 0; }
+    if (dir === 'RIGHT' && dx === 0) { dx = 1; dy = 0; }
+  }
+
+  function gameLoop() {
+    const head = { x: snake[0].x + dx, y: snake[0].y + dy };
+
+    if (head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount) {
+      return resetGame();
+    }
+
+    for (let segment of snake) {
+      if (head.x === segment.x && head.y === segment.y) {
+        return resetGame();
+      }
+    }
+
+    snake.unshift(head);
+
+    let ateFoodIndex = foods.findIndex(f => f.x === head.x && f.y === head.y);
+
+    if (ateFoodIndex !== -1) {
+      score += 1; // Подсчёт по 1 очку
+      scoreEl.innerText = score;
+      foods.splice(ateFoodIndex, 1);
+      adjustFoodCount();
+    } else {
+      snake.pop();
+    }
+
+    draw();
+  }
+
+  function adjustFoodCount() {
+    while (foods.length < targetFoodCount) {
+      const newFood = generateFood();
+      if (newFood) foods.push(newFood);
+      else break;
+    }
+    while (foods.length > targetFoodCount) {
+      foods.pop();
+    }
+  }
+
+  function generateFood() {
+    let attempts = 0;
+    while (attempts < 100) {
+      let f = {
+        x: Math.floor(Math.random() * tileCount),
+        y: Math.floor(Math.random() * tileCount)
+      };
+      let inSnake = snake.some(s => s.x === f.x && s.y === f.y);
+      let inFoods = foods.some(existing => existing.x === f.x && existing.y === f.y);
+
+      if (!inSnake && !inFoods) return f;
+      attempts++;
+    }
+    return null;
+  }
+
+  function draw() {
+    ctx.fillStyle = "#13131a";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.strokeStyle = "#1a1a26";
+    ctx.lineWidth = 1;
+    for (let i = 0; i < canvas.width; i += gridSize) {
+      ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, canvas.height); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(canvas.width, i); ctx.stroke();
+    }
+
+    foods.forEach(f => {
+      ctx.fillStyle = "#ef4444";
+      ctx.beginPath();
+      let centerX = f.x * gridSize + gridSize / 2;
+      let centerY = f.y * gridSize + gridSize / 2;
+      ctx.arc(centerX, centerY, (gridSize / 2) - 2, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    snake.forEach((segment, index) => {
+      let isHead = index === 0;
+      ctx.fillStyle = isHead ? "#22c55e" : "#4ade80";
+
+      let x = segment.x * gridSize + 1;
+      let y = segment.y * gridSize + 1;
+      let size = gridSize - 2;
+      let radius = isHead ? 6 : 4;
+
+      ctx.beginPath();
+      ctx.roundRect(x, y, size, size, radius);
+      ctx.fill();
+    });
+  }
+
+  function resetGame() {
+    clearInterval(gameInterval);
+    alert(`Game Over! Final Score: ${score}`);
+    snake = [{ x: 10, y: 10 }, { x: 10, y: 11 }];
+    foods = [];
+    dx = 0;
+    dy = 0;
+    score = 0;
+    scoreEl.innerText = score;
+    gameStarted = false;
+    isPaused = false;
+    pauseOverlay.classList.remove("active");
+    pauseBtn.innerText = "⏸ Pause";
+    adjustFoodCount();
+    draw();
+  }
+
+  adjustFoodCount();
+  draw();
+</script>
+</body>
+</html>
